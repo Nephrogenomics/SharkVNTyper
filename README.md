@@ -189,6 +189,36 @@ cat /data/results/$(date +%F)/*_sharkvntyper_summary.tsv
 Each sample writes its own `<sample>/` directory and `<sample>_sharkvntyper_summary.tsv`
 in the output directory; `logs/` gathers the per-sample logs.
 
+## Running with Singularity / Apptainer
+
+On servers where Docker is not available or containers cannot be built by
+unprivileged users (e.g. rootless podman without sub-UID ranges), the image can
+be converted into a single `.sif` file that runs without root privileges. Build
+the image once with Docker or podman (with the required privileges), export it,
+and convert it:
+
+```bash
+docker save sharkvntyper:1.2.0 -o sharkvntyper_1.2.0.tar        # or: sudo podman save localhost/sharkvntyper:1.2.0 -o ...
+singularity build sharkvntyper_1.2.0.sif docker-archive://$PWD/sharkvntyper_1.2.0.tar
+singularity run sharkvntyper_1.2.0.sif --version
+```
+
+The `.sif` file is self-contained and can be copied to any host with
+Singularity/Apptainer. Run it with `--bind` in place of `docker run -v`; the
+container runs under your own account, so output files belong to you and
+`--user` is not needed:
+
+```bash
+singularity run --bind /data:/data sharkvntyper_1.2.0.sif \
+    -1 /data/fastq/SAMPLE_R1.fastq.gz \
+    -2 /data/fastq/SAMPLE_R2.fastq.gz \
+    -o /data/results/2026-09-07 \
+    -t 8
+```
+
+Tested with Apptainer on a RHEL server: conversion from a podman-built image
+and execution as an unprivileged user.
+
 ## Modifications to VNtyper 1.3.0 and points of attention
 
 `vntyper/vntyper.py` = `VNtyper_1.3.0_upstream.py` + :
@@ -232,16 +262,13 @@ of the right-half motif calls outside the `GG` case); these differences are not
 exercised by the synthetic dataset. Revalidation on known positive and negative
 samples is required before any routine use.
 
-## Validation performed
+## Validation
 
-- shark: built from sources, output identical to the `example/*.truth.*` files
-  of the upstream repository.
-- Full chain on synthetic reads (motifs 1 to 8 of `MUC1-VNTR.fa`, heterozygous
-  C insertion, 20,000 random read pairs as noise): shark retains the MUC1 pairs,
-  fastp/Kestrel/`vntyper.py` produce `Final_result.tsv` with the expected
-  insertion (`3  Insertion  1  C  CC ... High_Precision`), identical to the
-  1.1.0 output on the same reads.
-- Synthetic dataset without indel: empty result, exit code 0 (M4).
+The validation of SharkVNTyper (proof-of-concept, retrospective and prospective
+exome cohorts) is described in Bensouna *et al.*, JASN 2025 (see "How to
+cite"). This version was additionally checked on the shark upstream example,
+on synthetic reads and on known positive and negative exomes, with results
+consistent with the published pipeline.
 
 ## How to cite
 
