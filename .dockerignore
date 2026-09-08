@@ -1,0 +1,13 @@
+.git
+*.zip
+*.simg
+*.sif
+out/
+**/temp_*/
+shark/shark
+shark/*.o
+shark/lib
+shark/include
+shark/sdsl-lite/build/*
+!shark/sdsl-lite/build/build.sh
+!shark/sdsl-lite/build/clean.sh

@@ -1,0 +1,9 @@
+# Python dependencies of VNtyper (VNtyper README and header of the upstream script).
+# Versions pinned at image creation time (2026-09) for build reproducibility;
+# they are not imposed by VNtyper -> adjust if needed.
+pandas==2.2.3
+numpy==1.26.4
+regex==2024.11.6
+biopython==1.85
+pysam==0.22.1
+setuptools<70

@@ -1,0 +1,18 @@
+# shark binaries / objects (rebuilt by the Dockerfile)
+shark/shark
+shark/*.o
+shark/lib/
+shark/include/
+shark/sdsl-lite/build/*
+!shark/sdsl-lite/build/build.sh
+!shark/sdsl-lite/build/clean.sh
+# container images
+*.simg
+*.sif
+*.tar
+# outputs
+out/
+temp_*/
+*.log
+*.err
+__pycache__/

@@ -1,0 +1,152 @@
+--- vntyper/VNtyper_1.3.0_upstream.py	2026-09-07 19:47:00.220555280 +0000
++++ vntyper/vntyper.py	2026-09-07 20:27:09.557392537 +0000
+@@ -1,9 +1,23 @@
+-#!/usr/bin/env python3.9 or Above
++#!/usr/bin/env python3
+ # coding: utf-8
++#
++# VNtyper 1.3.0 (Hassan Saei, Université Paris Cité / Imagine Institute, BSD 3-Clause,
++# https://github.com/hassansaei/VNtyper, tag VNtyper_v1.3.0) — modified version
++# for SharkVNTyper. Modifications compared to upstream (see CHANGES_vs_upstream_1.3.0.diff):
++#   M1  header / version string
++#   M2  -ref becomes optional; new --skip_alignment option
++#   M3  --fastq --skip_alignment mode: fastp (QC report) then Kestrel directly on the
++#       input reads, without bwa/picard/sambamba alignment — this is the behaviour of
++#       the --fastq mode of versions 1.1.0/1.2.0 (where Kestrel read the raw reads,
++#       not the fastp output); VNTR coverage = NA.
++#       --use_qc_reads option: Kestrel reads the fastp output (deduplicated), as in 1.3.0
++#   M4  StepA_processing: no crash when the Kestrel VCF contains no indel
++#   M5  rm -f when cleaning intermediate files (absent in --skip_alignment mode)
++# The rest of the file is unchanged.
+ 
+ # Versioning information
+-__version__ = "1.3.0" 
+-__release_date__ = "2024-09-27" 
++__version__ = "1.3.0+sharkvntyper.1"
++__release_date__ = "2026-09-07"
+ 
+ from concurrent.futures import thread
+ import subprocess as sp
+@@ -23,7 +37,7 @@
+ # Parse Arguments 
+ parser = argparse.ArgumentParser(description='Given raw fastq files or BAM files, this pipeline genotype MUC1-VNTR using two independent genotyping methods (Kestrel and code-adVNTR)')
+ parser.add_argument('--version', action='version', version=f'VNtyper {__version__} (Released: {__release_date__})')
+-parser.add_argument('-ref', '--reference_file', type=str, metavar='Referense', help='FASTA-formatted reference file and indexes for read alignment', required=True)
++parser.add_argument('-ref', '--reference_file', type=str, metavar='Referense', help='FASTA-formatted reference file and indexes for read alignment (not needed with --skip_alignment)', required=False)  # SharkVNTyper M2
+ parser.add_argument('-r1', '--fastq1', type=str, default=None, help='Fastq file first pair', required=False)
+ parser.add_argument('-r2', '--fastq2', type=str, default=None, help='Fastq file second pair', required=False)
+ parser.add_argument('-o', '--output', type=str, default=None, help='Output file name', required=True)
+@@ -39,6 +53,8 @@
+ parser.add_argument("--fastq", action="store_true", help="Paired-end fastq files as an input")
+ parser.add_argument('-a', '--alignment', type=str, default=None, help='Alignment File (with an index file .bai)', required=False)
+ parser.add_argument('-c', '--custom_region', type=str, default=None, help='Custom region for MUC1 gene to be subseted in the provided BAM file', required=False)
++parser.add_argument("--skip_alignment", action="store_true", help="FASTQ input only: run fastp then Kestrel directly, without bwa alignment / MUC1 slicing (SharkVNTyper)")  # SharkVNTyper M2
++parser.add_argument("--use_qc_reads", action="store_true", help="With --skip_alignment: give the fastp-filtered (deduplicated) reads to Kestrel instead of the raw input reads (SharkVNTyper)")  # SharkVNTyper M3
+ 
+ 
+ args = parser.parse_args()
+@@ -203,11 +219,38 @@
+         validate_fastq_file(args.fastq2)
+ 
+ 
++# SharkVNTyper M3 - FASTQ already restricted to MUC1 reads (shark): fastp then Kestrel,
++# no alignment. fastp parameters are those of VNtyper 1.1.0/1.2.0 --fastq mode. As in
++# those versions, Kestrel reads the RAW input reads by default (fastp output = QC report
++# only); --use_qc_reads gives Kestrel the fastp-filtered reads instead (1.3.0 behaviour).
++if args.fastq and args.skip_alignment:
++    fastq_1 = args.fastq1
++    fastq_2 = args.fastq2
++    log_and_print("--skip_alignment: fastp QC (deduplication, length >= 40) without alignment (SharkVNTyper)\n")
++    QC_command = "fastp " + "--thread " + args.threads + " " + "--in1 " + fastq_1 + " --in2 " + fastq_2 + " --out1 " + output + args.output + "_R1.fastq.gz" + " " + "--out2 " + output + args.output + "_R2.fastq.gz" + " --compression 6 --disable_adapter_trimming --dedup --dup_calc_accuracy 3 --length_required 40 --html " + output + "temp/" + args.output + ".html" + " --json " + output + "temp/" + args.output + ".fastp.json"
++    process = sp.Popen(QC_command, shell=True)
++    process.wait()
++    if process.returncode != 0:
++        log_and_print("fastp failed (exit code %s)" % process.returncode, level="error")
++        sys.exit(1)
++    with open(output + args.output + ".coverage", "w") as cov_file:
++        cov_file.write("NA\n")
++    if args.use_qc_reads:
++        fastq_1 = output + args.output + "_R1.fastq.gz"
++        fastq_2 = output + args.output + "_R2.fastq.gz"
++        log_and_print("Kestrel will use the fastp-filtered reads (--use_qc_reads)\n")
++    else:
++        log_and_print("Kestrel will use the raw input reads (VNtyper 1.1.0/1.2.0 behaviour)\n")
++    log_and_print("Fastq files ready to be used for genotyping!\n")
++
+ # Parsing fastq as an input - Mapping, QC, MUC1 gene subsetting
+-if args.fastq:
++elif args.fastq:
+     fastq_1 = args.fastq1
+     fastq_2 = args.fastq2
+     reference = args.reference_file
++    if reference is None:  # SharkVNTyper M2
++        log_and_print("Error: -ref is required for FASTQ input unless --skip_alignment is given.", level="error")
++        sys.exit(1)
+     sam_out = output  + args.output + ".sam"
+     # Running BWA, Sambamba, BAM to FASTQ conversion and Quality check (read length (50) and phread score (20))
+     if None not in (fastq_1, fastq_2):
+@@ -346,6 +389,9 @@
+ def StepA_processing(df):
+     df3=df.copy()
+     df3 = df3.rename(columns=lambda c: 'Depth' if c.endswith('\n') else c)
++    if df3.empty:  # SharkVNTyper M4 - no indel in the Kestrel VCF: str.split(expand=True) would raise ValueError
++        log_and_print('No indel found in the Kestrel VCF.')
++        return pd.DataFrame(columns=['Motifs', 'Variant', 'POS', 'REF', 'ALT', 'Motif_sequence', 'Estimated_Depth_AlternateVariant', 'Estimated_Depth_Variant_ActiveRegion', 'ref_len', 'alt_len', 'Frame_Score', 'TrueFalse'])
+     df3[['Del', 'Estimated_Depth_AlternateVariant', 'Estimated_Depth_Variant_ActiveRegion']] = df3['Depth'].str.split(':', expand=True)
+     df3 = df3[['Motifs', 'Variant', 'POS', 'REF', 'ALT', 'Motif_sequence', 'Estimated_Depth_AlternateVariant', 'Estimated_Depth_Variant_ActiveRegion']]
+     df3["ref_len"] = df3["REF"].str.len()
+@@ -494,12 +540,12 @@
+             f3.write('\t'.join(columns_kmer) + '\n') 
+         for db in rm_list_1:
+             db_str = args.output + db
+-            rm_command =  "rm " + output + db_str
++            rm_command =  "rm -f " + output + db_str  # SharkVNTyper M5
+             process = sp.Popen(rm_command, shell=True)
+             process.wait()
+         for db in rm_list_3:
+             db_str = args.output + db
+-            rm_command =  "rm " + output + db_str
++            rm_command =  "rm -f " + output + db_str  # SharkVNTyper M5
+             process = sp.Popen(rm_command, shell=True)
+             process.wait()
+         sys.exit()
+@@ -515,12 +561,12 @@
+                     f3.write(line)
+         for db in rm_list_1:
+             db_str = args.output + db
+-            rm_command =  "rm " + output + db_str
++            rm_command =  "rm -f " + output + db_str  # SharkVNTyper M5
+             process = sp.Popen(rm_command, shell=True)
+             process.wait()
+         for db in rm_list_3:
+             db_str = args.output + db
+-            rm_command =  "rm " + output + db_str
++            rm_command =  "rm -f " + output + db_str  # SharkVNTyper M5
+             process = sp.Popen(rm_command, shell=True)
+             process.wait()
+         log_and_print('The final result is saved in *_Final_result.tsv')
+@@ -651,7 +697,7 @@
+                 f1.write(line)
+     for db in rm_list_4:
+         db_str = args.output + db
+-        rm_command =  "rm " + output + db_str
++        rm_command =  "rm -f " + output + db_str  # SharkVNTyper M5
+         process = sp.Popen(rm_command, shell=True)
+         process.wait()
+     log_and_print('The final result is saved in *_Final_result.tsv')
+@@ -686,13 +732,13 @@
+     if args.alignment is not None:
+         for db in rm_list_5:
+             db_str = args.output + db
+-            rm_command =  "rm " + output + db_str
++            rm_command =  "rm -f " + output + db_str  # SharkVNTyper M5
+             process = sp.Popen(rm_command, shell=True)
+             process.wait()
+     else:
+         for db in rm_list_4:
+             db_str = args.output + db
+-            rm_command =  "rm " + output + db_str
++            rm_command =  "rm -f " + output + db_str  # SharkVNTyper M5
+             process = sp.Popen(rm_command, shell=True)
+             process.wait()
+ 

@@ -1,0 +1,61 @@
+cff-version: 1.2.0
+message: >-
+  If you use SharkVNTyper, please cite the article below (preferred-citation),
+  together with shark (Denti et al. 2021), VNtyper (Saei et al. 2023) and
+  Kestrel (Audano et al. 2018).
+title: "SharkVNTyper"
+version: 1.2.0
+date-released: 2026-09-07
+license: BSD-3-Clause
+# Author list: authors of the SharkVNTyper article (JASN 2025), confirmed by the team.
+authors:
+  - family-names: Bensouna
+    given-names: Ilias
+  - family-names: Robert
+    given-names: Thomas
+  - family-names: Vanhoye
+    given-names: Xavier
+  - family-names: Dancer
+    given-names: Marine
+  - family-names: Raymond
+    given-names: Laure
+  - family-names: Delaugère
+    given-names: Pierre
+  - family-names: Hilbert
+    given-names: Pascale
+  - family-names: Richard
+    given-names: Hugues
+  - family-names: Mesnard
+    given-names: Laurent
+    affiliation: "Sorbonne Université, Inserm U1155, Nephrogenomics team"
+preferred-citation:
+  type: article
+  title: "Systematic Screening of Autosomal Dominant Tubulointerstitial Kidney Disease-MUC1 27dupC Pathogenic Variant through Exome Sequencing"
+  authors:
+    - family-names: Bensouna
+      given-names: Ilias
+    - family-names: Robert
+      given-names: Thomas
+    - family-names: Vanhoye
+      given-names: Xavier
+    - family-names: Dancer
+      given-names: Marine
+    - family-names: Raymond
+      given-names: Laure
+    - family-names: Delaugère
+      given-names: Pierre
+    - family-names: Hilbert
+      given-names: Pascale
+    - family-names: Richard
+      given-names: Hugues
+    - family-names: Mesnard
+      given-names: Laurent
+  journal: "Journal of the American Society of Nephrology"
+  year: 2025
+  volume: 36
+  issue: 2
+  start: 256
+  end: 263
+  doi: 10.1681/ASN.0000000503
+  pmid: "39325540"
+  pmcid: PMC11801747
